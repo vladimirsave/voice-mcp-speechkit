@@ -331,7 +331,7 @@ TOOLS = [
      "description": "Произнести текст вслух по-русски через SpeechKit.",
      "inputSchema": {"type": "object", "properties": {
          "text": {"type": "string", "description": "что сказать"},
-         "voice": {"type": "string", "description": "голос SpeechKit, по умолчанию alena"},
+         "voice": {"type": "string", "description": "голос SpeechKit, по умолчанию filipp"},
          "lang": {"type": "string", "description": "язык, по умолчанию ru-RU"}},
          "required": ["text"]},
      "handler": tool_speak},

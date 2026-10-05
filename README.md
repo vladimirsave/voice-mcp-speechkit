@@ -1,116 +1,129 @@
 # voice-mcp-speechkit
 
-Голосовой MCP-сервер: ваш агент слышит вас и отвечает вслух по-русски.
+**English** · [Русский](README.ru.md)
 
-Один файл на Python, без единой сторонней библиотеки. Подключается к любому
-MCP-клиенту — Claude Code, Claude Desktop и другим. Распознавание и синтез
-речи делает [Яндекс SpeechKit](https://yandex.cloud/ru/services/speechkit):
-русский для него родной.
+A voice MCP server: your agent hears you and answers out loud in Russian.
 
----
-
-## Зачем
-
-Текстовый чат с агентом хорош, когда вы за столом. Но часть работы удобнее
-обсуждать голосом — особенно разбор задач, когда руки заняты, или когда
-формулировка рождается вслух быстрее, чем печатается.
-
-Готовые решения для голоса в агентах обычно опираются на английские движки
-синтеза. Этот сервер сделан для русского языка и для слабого железа.
+One Python file, zero third-party libraries. Plugs into any MCP client — Claude
+Code, Claude Desktop and others. Speech recognition and synthesis are done by
+[Yandex SpeechKit](https://yandex.cloud/en/services/speechkit), for which
+Russian is the native language.
 
 ---
 
-## Что умеет
+## Why
 
-| Инструмент | Что делает |
+Text chat with an agent is fine when you are at your desk. But some work is
+easier to discuss out loud — going through a task list with your hands busy, or
+when the wording comes faster spoken than typed.
+
+Off-the-shelf voice add-ons for agents usually rely on English-first synthesis
+engines. This server is built for Russian, and for weak hardware: it was
+developed and run daily on a two-core 2011 desktop.
+
+Nothing in it is Russian-only by design, though. Point `lang` and `voice` at
+another locale SpeechKit supports and the same four tools work.
+
+---
+
+## What it does
+
+| Tool | What it does |
 |---|---|
-| `voice_check` | Диагностика: виден ли микрофон, есть ли ffmpeg, отвечает ли SpeechKit. Ничего не записывает и не произносит |
-| `listen` | Записывает с микрофона и возвращает распознанный текст |
-| `speak` | Произносит текст вслух |
-| `converse` | Говорит фразу и сразу записывает ответ — одним действием |
+| `voice_check` | Diagnostics: is the microphone visible, is ffmpeg present, does SpeechKit answer. Records nothing, says nothing |
+| `listen` | Records from the microphone and returns the recognised text |
+| `speak` | Says a text out loud |
+| `converse` | Says a phrase and immediately records the reply — in one action |
 
-### Почему `converse` отдельно
+### Why `converse` exists separately
 
-Если звать `speak` и `listen` по очереди, между ними проходит круг
-размышления модели, и человек ждёт сигнала записи секунд десять-пятнадцать
-после реплики агента. В `converse` речь, сигнал и запись идут подряд внутри
-одного вызова — пауза исчезает, разговор становится похож на разговор.
+If you call `speak` and then `listen` as two tool calls, a full model round trip
+happens in between, and the human waits ten to fifteen seconds for the recording
+cue after the agent has finished speaking. By then they have usually started
+talking into a closed microphone.
 
-### Колокольчики
+In `converse` the speech, the cue and the recording run back to back inside a
+single call. The pause disappears and a conversation starts behaving like one.
+Use `converse` for dialogue; keep `speak` and `listen` for the cases where you
+genuinely only need one half.
 
-Начало записи отмечается высоким тоном, конец — низким. Без них непонятно,
-когда говорить: пока собеседник ждёт сигнала, окно записи уже закрывается.
+### The bells
 
----
-
-## Требования
-
-- **Python 3.9+** — только стандартная библиотека
-- **ffmpeg** в `PATH` — для записи с микрофона
-- **Windows** для воспроизведения через `winsound` (на других системах
-  звук проигрывается через `ffplay`, он идёт в комплекте с ffmpeg)
-- Аккаунт **Яндекс Облака** с сервисным аккаунтом для SpeechKit
-
-Сторонних пакетов Python не требуется. Это осознанное решение: сервер
-рассчитан на машины, где не хочется держать тяжёлое окружение.
+The start of the recording window is marked by a high tone, the end by a low
+one. Without them it is not clear when to talk — while one side waits for a cue,
+the recording window is already closing. Two short beeps turned out to matter
+more for usability than anything else in this server.
 
 ---
 
-## Установка
+## Requirements
 
-### 1. Доступ к SpeechKit
+- **Python 3.9+** — standard library only
+- **ffmpeg** in `PATH` — used for recording
+- **Windows** for playback through `winsound`; on other systems the audio is
+  played with `ffplay`, which ships with ffmpeg
+- A **Yandex Cloud** account with a service account for SpeechKit
 
-SpeechKit — сервис Яндекс **Облака**, а не Яндекс ID. OAuth-токены от Директа,
-Метрики или Диска сюда не подходят, нужен отдельный сервисный аккаунт.
+No Python packages to install. That is deliberate: the server is meant for
+machines where you do not want to maintain a heavy environment.
 
-В [консоли Яндекс Облака](https://console.yandex.cloud):
+---
 
-1. Создайте каталог или возьмите существующий. Его идентификатор вида
-   `b1g...` — это `YC_FOLDER_ID`.
-2. Создайте сервисный аккаунт, например `speechkit-voice`.
-3. Выдайте ему две роли:
-   - `ai.speechkit-stt.user` — распознавание
-   - `ai.speechkit-tts.user` — синтез
-4. Создайте для него **API-ключ**. При создании укажите области действия
-   `yc.ai.speechkitStt.execute` и `yc.ai.speechkitTts.execute`.
-   Значение ключа показывается один раз.
+## Installation
 
-**Частая ошибка:** роли, выбранные в окне создания сервисного аккаунта,
-иногда не сохраняются. Проверьте, что в списке аккаунтов в колонке ролей не
-стоит прочерк. Если стоит — выдайте роли отдельно, через права доступа
-каталога.
+### 1. SpeechKit access
 
-### 2. Файл доступа
+SpeechKit is a **Yandex Cloud** service, not a Yandex ID one. OAuth tokens from
+other Yandex products do not work here; you need a separate service account.
 
-Скопируйте `yandex-speechkit.env.example` в `yandex-speechkit.env` рядом с
-сервером и заполните:
+In the [Yandex Cloud console](https://console.yandex.cloud):
+
+1. Create a folder or take an existing one. Its identifier, shaped like
+   `b1g...`, is your `YC_FOLDER_ID`.
+2. Create a service account, for example `speechkit-voice`.
+3. Grant it two roles:
+   - `ai.speechkit-stt.user` — recognition
+   - `ai.speechkit-tts.user` — synthesis
+4. Create an **API key** for it. When creating the key, select the scopes
+   `yc.ai.speechkitStt.execute` and `yc.ai.speechkitTts.execute`. The key value
+   is shown exactly once.
+
+**A common trap:** roles selected in the service-account creation dialog
+sometimes do not get saved. Check the account list — if the roles column shows a
+dash, the roles were not applied. Assign them separately, through the folder's
+access-management page.
+
+### 2. The credentials file
+
+Copy `yandex-speechkit.env.example` to `yandex-speechkit.env` next to the
+server and fill it in:
 
 ```
-YC_API_KEY=<секретный ключ сервисного аккаунта>
-YC_FOLDER_ID=<идентификатор каталога>
+YC_API_KEY=<service account API key>
+YC_FOLDER_ID=<folder identifier>
 ```
 
-Файл не должен попадать в репозиторий — он уже в `.gitignore`.
+The file must never reach the repository — it is already in `.gitignore`.
 
-### 3. Проверка
+### 3. Check
 
 ```bash
 python voice_mcp.py --selftest
 ```
 
-Самопроверка не ходит в сеть, не трогает микрофон и не произносит ни звука.
-Она проверяет протокол, поведение при отсутствующем доступе и наличие ffmpeg
-с микрофоном.
+The self-test makes no network calls, does not touch the microphone and does not
+utter a sound. It checks the protocol, the behaviour when credentials are
+missing, and the presence of ffmpeg and a microphone.
 
-### 4. Подключение к клиенту
+### 4. Wiring it into a client
 
 **Claude Code:**
 
 ```bash
-claude mcp add voice -- python /путь/к/voice_mcp.py
+claude mcp add voice -- python /path/to/voice_mcp.py
 ```
 
-**Или вручную**, в конфигурации клиента:
+**Or by hand**, in the client configuration:
 
 ```json
 {
@@ -118,125 +131,181 @@ claude mcp add voice -- python /путь/к/voice_mcp.py
     "voice": {
       "type": "stdio",
       "command": "python",
-      "args": ["/путь/к/voice_mcp.py"]
+      "args": ["/path/to/voice_mcp.py"]
     }
   }
 }
 ```
 
-После этого перезапустите клиент — MCP-серверы подхватываются при старте.
+Then restart the client — MCP servers are picked up at startup. This also means
+**edits to the file do not take effect until the client restarts**. If the voice
+still behaves the old way after a change, that is almost always why.
 
 ---
 
-## Настройки
+## Tool reference
 
-Правятся в начале файла:
+All four tools return a single text block. Failures come back as text too, not
+as protocol errors — see [Errors](#errors).
 
-| Параметр | По умолчанию | Смысл |
+### `voice_check`
+
+No parameters. Returns a short report: whether ffmpeg is on the path, how many
+input devices were found and their names, whether the API key and folder are
+set, and whether SpeechKit answered a probe request.
+
+### `listen`
+
+| Parameter | Type | Default | Meaning |
+|---|---|---|---|
+| `seconds` | integer | `8` | How long to record. Capped at `MAX_SECONDS` (60) |
+| `device` | string | first device found | Microphone name as the system reports it |
+| `lang` | string | `ru-RU` | Recognition language |
+
+Returns the recognised text, or a note saying nothing was recognised.
+
+### `speak`
+
+| Parameter | Type | Default | Meaning |
+|---|---|---|---|
+| `text` | string | — | **Required.** What to say |
+| `voice` | string | `filipp` | SpeechKit voice |
+| `lang` | string | `ru-RU` | Synthesis language |
+
+Returns a confirmation with the number of characters synthesised.
+
+### `converse`
+
+| Parameter | Type | Default | Meaning |
+|---|---|---|---|
+| `text` | string | — | **Required.** What to say before recording |
+| `seconds` | integer | `15` | How long to listen afterwards |
+| `voice` | string | `filipp` | SpeechKit voice |
+| `lang` | string | `ru-RU` | Language for both halves |
+
+Returns what the other side said. This is the tool to use for an actual
+conversation.
+
+---
+
+## Settings
+
+Edited at the top of the file:
+
+| Setting | Default | Meaning |
 |---|---|---|
-| `DEFAULT_VOICE` | `filipp` | Голос синтеза. Список голосов — в документации SpeechKit |
-| `DEFAULT_LANG` | `ru-RU` | Язык распознавания и синтеза |
-| `RATE` | `16000` | Частота дискретизации, Гц |
-| `MAX_SECONDS` | `60` | Предел длительности одной записи |
+| `DEFAULT_VOICE` | `filipp` | Synthesis voice. The full list is in the SpeechKit documentation |
+| `DEFAULT_LANG` | `ru-RU` | Language for recognition and synthesis |
+| `RATE` | `16000` | Sample rate, Hz |
+| `MAX_SECONDS` | `60` | Hard cap on a single recording |
 
-### Про частоту
+### About the sample rate
 
-16 кГц — стандарт для речи. Можно поставить 48000, качество на слух почти не
-изменится, а данных станет втрое больше. На слабой машине это заметно по
-задержке.
-
----
-
-## Как устроено внутри
-
-### Сырой звук вместо сжатого
-
-И запись, и синтез работают с несжатым PCM. Это выглядит расточительно, но
-на слабом железе оказалось единственным рабочим вариантом:
-
-- **при воспроизведении** сжатого потока речь шла рывками и превращалась в
-  неразборчивый набор звуков — декодер не успевал;
-- **при распознавании** сжатая запись давала пустой ответ, хотя микрофон
-  исправно писал звук. Проверяется прямым замером уровня записи и пробным
-  распознаванием того же фрагмента.
-
-Сырой PCM отдаётся системе как есть: синтез заворачивается в заголовок WAV и
-проигрывается средствами ОС, запись отправляется в SpeechKit без обработки.
-Ни кодировщика, ни декодера в цепочке не остаётся.
-
-### Протокол MCP вручную
-
-Сервер разбирает JSON-RPC по stdio сам — около сорока строк. Это дешевле, чем
-тянуть зависимость ради трёх методов: `initialize`, `tools/list`, `tools/call`.
-
-### Кодировка
-
-На Windows стандартный ввод по умолчанию читается кодировкой системы, и
-кириллица в запросах приходит искажённой — синтез честно озвучивает мусор.
-Сервер явно переключает и ввод, и вывод на UTF-8.
-
-Признак этой беды характерный: сервер сообщает о вдвое большем числе
-символов, чем есть в тексте. Он считает байты испорченной строки.
-
-### Ошибки
-
-Сбой возвращается как результат с пометкой, а не как отказ протокола: агенту
-нужно прочитать причину и передать её человеку словами. Сообщения
-сформулированы так, чтобы по ним было понятно, что чинить.
+16 kHz is the standard for speech. You can set 48000; the difference is barely
+audible while the amount of data triples. On a weak machine you will hear that
+as latency, not as quality.
 
 ---
 
-## Приватность
+## How it works inside
 
-**Сервер не слушает постоянно.** Запись начинается только по вызову `listen`
-или `converse` и длится не дольше заданного предела. Микрофон, включённый
-фоном, здесь не предусмотрен намеренно.
+### Raw audio instead of compressed
 
-**Значения ключей не печатаются** и не попадают в журнал.
+Both recording and synthesis work with uncompressed PCM. That looks wasteful,
+but on weak hardware it turned out to be the only thing that worked:
 
-**Звук уходит в Яндекс Облако** — это облачный сервис распознавания и
-синтеза. Если ваш сценарий этого не допускает, используйте локальные движки;
-этот сервер не для такого случая.
+- **on playback**, a compressed stream came out in stutters and turned into an
+  unintelligible stream of sounds — the decoder could not keep up;
+- **on recognition**, a compressed recording came back empty although the
+  microphone was capturing audio correctly. Verified by measuring the recording
+  level directly and then recognising the very same fragment as raw PCM, which
+  worked.
+
+So raw PCM is handed to the system as it is: synthesis gets wrapped in a WAV
+header (44 bytes, built by hand) and played by the OS, and the recording goes to
+SpeechKit untouched. No encoder and no decoder is left anywhere in the chain.
+
+### The MCP protocol, written out by hand
+
+The server parses JSON-RPC over stdio itself — about forty lines. That is
+cheaper than taking on a dependency for three methods: `initialize`,
+`tools/list`, `tools/call`.
+
+### Encoding
+
+On Windows, standard input is read in the system code page by default, so
+Cyrillic arrives mangled and synthesis faithfully reads out the garbage. The
+server switches both input and output to UTF-8 explicitly.
+
+The symptom of this particular bug is distinctive: the server reports roughly
+twice as many characters as the text actually has. It is counting the bytes of a
+broken string. If you hear letters and numbers being read out instead of your
+sentence, look here first.
+
+### Errors
+
+A failure is returned as a result with a note, not as a protocol error: the
+agent needs to read the reason and pass it on to the human in words. The
+messages are phrased so that it is clear what to fix.
 
 ---
 
-## Стоимость
+## Privacy
 
-SpeechKit тарифицируется за секунды распознавания и символы синтеза.
-Актуальные цены — на [странице тарифов](https://yandex.cloud/ru/docs/speechkit/pricing).
-Новым аккаунтам Облако даёт стартовый грант.
+**The server does not listen continuously.** Recording starts only on a `listen`
+or `converse` call and lasts no longer than the given limit. A background-open
+microphone is deliberately not provided.
 
-Расход на разговор небольшой, но посчитайте его на своих объёмах прежде, чем
-ставить голос на поток.
+**Key values are never printed** and never reach the log.
+
+**Audio goes to Yandex Cloud** — it is a cloud recognition and synthesis
+service. If your situation does not allow that, use a local engine; this server
+is not for that case.
 
 ---
 
-## Разбор неполадок
+## Cost
 
-**«Микрофонов найдено: 0», хотя система микрофон видит.**
-Формат вывода списка устройств у ffmpeg менялся между версиями. Сервер
-понимает оба, но если устройство всё равно не находится — проверьте вручную:
+SpeechKit is billed per second of recognition and per character of synthesis.
+Current prices are on the
+[pricing page](https://yandex.cloud/en/docs/speechkit/pricing). New accounts get
+a starting grant.
+
+A conversation costs little, but measure it at your own volumes before putting
+voice into daily use.
+
+---
+
+## Troubleshooting
+
+**"0 microphones found" although the system sees one.**
+The format of ffmpeg's device listing changed between versions. The server
+understands both, but if the device is still not found, check by hand:
 
 ```bash
 ffmpeg -list_devices true -f dshow -i dummy
 ```
 
-Имя устройства можно передать явно параметром `device`.
+The device name can also be passed explicitly in the `device` parameter.
 
-**Устройство USB в состоянии ошибки, код 10.**
-Частая беда на старых материнских платах: передние разъёмы USB не дают
-достаточного питания гарнитуре. Переткните в разъём на задней панели.
+**A USB device in an error state, code 10.**
+A common problem on older motherboards: the front USB ports do not deliver
+enough power for a headset. Move it to a port on the back panel.
 
-**Речь слышна, но это не ваш текст.**
-Проверьте кодировку — см. раздел выше. Косвенный признак: число символов в
-ответе сервера вдвое больше настоящего.
+**Speech is audible, but it is not your text.**
+Check the encoding — see the section above. An indirect sign: the character
+count in the server's reply is twice the real one.
 
-**Запись пустая, хотя микрофон работает.**
-Убедитесь, что гарнитура выбрана устройством ввода по умолчанию в настройках
-звука системы, и что уровень не в нуле.
+**The recording is empty although the microphone works.**
+Make sure the headset is selected as the default input device in the system
+sound settings and that the level is not at zero. If it is, and recognition is
+still empty, suspect the audio format rather than the microphone.
+
+**The voice ignores your changes to the file.**
+MCP servers are started by the client. Restart the client.
 
 ---
 
-## Лицензия
+## License
 
-MIT. Пользуйтесь.
+MIT. Use it.
