@@ -3,3 +3,4 @@ yandex-speechkit.env
 *.pcm
 *.ogg
 __pycache__/
+*.bak.*
