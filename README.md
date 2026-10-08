@@ -31,9 +31,10 @@ another locale SpeechKit supports and the same four tools work.
 | Tool | What it does |
 |---|---|
 | `voice_check` | Diagnostics: is the microphone visible, is ffmpeg present, does SpeechKit answer. Records nothing, says nothing |
+| `wake` | Waits until the person calls out with a wake word (`поговорим` by default) and returns what was heard. Silence is never sent to the cloud |
 | `listen` | Records from the microphone and returns the recognised text |
 | `speak` | Says a text out loud |
-| `converse` | Says a phrase and immediately records the reply — in one action |
+| `converse` | Says a phrase and immediately records the reply — in one action. On hearing a farewell, marks the reply as closing the conversation |
 
 ### Why `converse` exists separately
 
@@ -46,6 +47,25 @@ In `converse` the speech, the cue and the recording run back to back inside a
 single call. The pause disappears and a conversation starts behaving like one.
 Use `converse` for dialogue; keep `speak` and `listen` for the cases where you
 genuinely only need one half.
+
+### How a conversation runs
+
+Turn by turn, closed by a word rather than a timer.
+
+1. The agent calls `wake` and waits. The microphone is open, but only chunks
+   with someone speaking reach the cloud: loudness is measured locally, so
+   waiting in a quiet room costs nothing. A high tone marks the start of the
+   wait, a low one its end.
+2. The person says the wake word — `поговорим` by default. `wake` returns what
+   it heard, and the exchange continues through `converse`.
+3. Either side says a farewell — `пока`, `до свидания`, `конец связи`,
+   `закончили` — and `converse` tags the reply with
+   `[прощание — разговор закрыт]`, so the agent never has to guess whether
+   another turn is expected.
+
+Farewells match whole words only: `покажи остатки` ("show me the stock") does
+not end the call. That is not pedantry — on short utterances recognition often
+returns the word inside another one, and the dialogue would break mid-sentence.
 
 ### The bells
 
@@ -95,8 +115,11 @@ access-management page.
 
 ### 2. The credentials file
 
-Copy `yandex-speechkit.env.example` to `yandex-speechkit.env` next to the
-server and fill it in:
+Copy `yandex-speechkit.env.example` to `yandex-speechkit.env` and fill it
+in. The server looks for the file in a `secure/` directory beside the
+server's own directory — that is `../secure/yandex-speechkit.env` relative
+to `voice_mcp.py`, so the keys live outside the repository and cannot be
+committed by accident. Environment variables of the same names also work:
 
 ```
 YC_API_KEY=<service account API key>
